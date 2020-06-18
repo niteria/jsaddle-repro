@@ -8,12 +8,12 @@ import Control.Monad.IO.Class
 import Data.Text
 import Language.Javascript.JSaddle
 import Language.Javascript.JSaddle.Warp
+import System.Environment
 
 extraJs :: Text
 extraJs =
   mconcat
     [ "(function(f) {"
-    , "  f('Hello');"
     , "  let s = document.createElement('div'); "
     , "  window['handler'] = function() { console.log('Logging from default handler'); };"
     , "  window['register'] = function(f) { window['handler'] = f; };"
@@ -23,23 +23,19 @@ extraJs =
     ]
 
 main :: IO ()
-main =
-  run 8085 $ do
+main = do
+  [port] <- getArgs
+  putStrLn $ "Running on port " <> port <> "..."
+  run (read port) $ do
     result <- liftIO newEmptyMVar
-    deRefVal $
-      call
-        (eval extraJs)
-        global
-        [fun $ \_ _ [arg1] -> do valToText arg1 >>= (liftIO . putMVar result)]
-    liftIO $ takeMVar result
+    call (eval extraJs) global ()
     cb <-
       function $ \_ _ _ -> do
-        deRefVal $
-          call
-            (eval
-               ("(function (f) { console.log('Logging from callback'); f(); })" :: Text))
-            global
-            [fun $ \_ _ [] -> return ()]
+        call
+          (eval
+             ("(function () { console.log('Logging from callback'); })" :: Text))
+          global
+          ()
         return ()
     jsg1 ("register" :: Text) cb
     return ()
